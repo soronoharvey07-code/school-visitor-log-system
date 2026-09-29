@@ -15,13 +15,11 @@ import { EventView } from './components/views/EventView';
 import { ReportsView } from './components/views/ReportsView';
 import { SettingsView } from './components/views/SettingsView';
 import { EventRegistration } from './components/views/EventRegistration';
-import { OpenBrowserView } from './components/views/OpenBrowserView';
 import { StatsRow } from './components/StatsRow';
 import { User, AutoLogoutSettings, getStoredAutoLogoutSettings } from './types';
 import { consolidateVisitors } from './utils/visitorManager';
 import { syncIdSequence, resetIdSequence } from './utils/idSequence';
 import { formatManilaTime, formatManilaFullDate, parseToMs, parseOptionalToMs } from './utils/dateUtils';
-import { isInAppBrowser } from './utils/browserDetection';
 
 type Tab = 'dashboard' | 'admin' | 'register' | 'visitors' | 'all-visitors' | 'event' | 'reports' | 'settings';
 
@@ -824,10 +822,6 @@ export default function App() {
       setCurrentTab('dashboard');
     }
   }, [currentTab, isAdmin]);
-
-  if (isInAppBrowser()) {
-    return <OpenBrowserView />;
-  }
 
   if (eventIdParam) {
     return <EventRegistration eventId={eventIdParam} />;
