@@ -7,6 +7,8 @@ import { API } from '../../api';
 import { consolidateVisitors, registerOrUpdateVisitor } from '../../utils/visitorManager';
 import { formatManilaDate } from '../../utils/dateUtils';
 import { validateEventStatus } from '../../utils/eventValidation';
+import { isInAppBrowser } from '../../utils/browserDetection';
+import { OpenBrowserView } from './OpenBrowserView';
 
 interface EventRegistrationProps {
   eventId: string;
@@ -17,6 +19,9 @@ export function EventRegistration({ eventId }: EventRegistrationProps) {
   const [isEventActive, setIsEventActive] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // In-App Browser Detection State (Facebook Messenger, Instagram, etc.)
+  const [inApp] = useState<boolean>(() => isInAppBrowser());
 
   // Form State
   const [name, setName] = useState('');
@@ -40,6 +45,49 @@ export function EventRegistration({ eventId }: EventRegistrationProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Restore pre-registered visitor pass from URL query parameters if present
+  // (Prevents data loss and avoids regeneration when opening from Messenger into external browser)
+  useEffect(() => {
+    try {
+      const searchParams = new URLSearchParams(window.location.search);
+      const urlVisNum = searchParams.get('vis_num') || searchParams.get('reg_num');
+      const urlQrData = searchParams.get('qr_data') || searchParams.get('reg_id');
+      const urlVisName = searchParams.get('vis_name') || searchParams.get('name') || '';
+      const urlVisId = searchParams.get('vis_id');
+
+      if (urlQrData) {
+        let decoded = urlQrData;
+        try {
+          if (decoded.includes('%')) {
+            decoded = decodeURIComponent(decoded);
+          }
+          const parsed = JSON.parse(decoded);
+          const num = parsed.visitor_number || urlVisNum || '';
+          setRegisteredVisitorId(decoded);
+          setRegisteredVisitorNumber(num);
+          setSuccess(true);
+          return;
+        } catch (e) {
+          // If not valid JSON, fall back to urlVisNum
+        }
+      }
+
+      if (urlVisNum) {
+        const qrPayload = JSON.stringify({
+          type: 'pre_registration',
+          id: urlVisId ? (parseInt(urlVisId, 10) || urlVisId) : 0,
+          visitor_number: urlVisNum,
+          name: urlVisName.trim()
+        });
+        setRegisteredVisitorId(qrPayload);
+        setRegisteredVisitorNumber(urlVisNum);
+        setSuccess(true);
+      }
+    } catch (err) {
+      console.warn('Error reading registration state from URL:', err);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -326,6 +374,21 @@ export function EventRegistration({ eventId }: EventRegistrationProps) {
         setRegisteredVisitorNumber(visNum);
         setSuccess(true);
 
+        // Update URL query parameters immediately via history.replaceState
+        // so if the visitor opens the native Messenger menu ("Open in Safari" / "Open in Chrome")
+        // or reloads, the exact registration result is maintained without losing data or regenerating
+        try {
+          const currentUrl = new URL(window.location.href);
+          currentUrl.searchParams.set('event', eventId);
+          currentUrl.searchParams.set('vis_num', visNum);
+          currentUrl.searchParams.set('vis_id', String(data.id));
+          currentUrl.searchParams.set('vis_name', name.trim());
+          currentUrl.searchParams.set('qr_data', qrPayload);
+          window.history.replaceState(null, '', currentUrl.toString());
+        } catch (e) {
+          console.warn('Could not update history state:', e);
+        }
+
         // Update local storage so visitor appears instantly if on same browser window
         try {
           const storage = getSharedStorage();
@@ -446,6 +509,33 @@ export function EventRegistration({ eventId }: EventRegistrationProps) {
     }
   };
 
+  const getRegistrationResultUrl = () => {
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('event', eventId);
+      if (registeredVisitorNumber) {
+        url.searchParams.set('vis_num', registeredVisitorNumber);
+      }
+      if (registeredVisitorId) {
+        url.searchParams.set('qr_data', registeredVisitorId);
+        try {
+          const parsed = JSON.parse(registeredVisitorId);
+          if (parsed.name) url.searchParams.set('vis_name', parsed.name);
+          if (parsed.id) url.searchParams.set('vis_id', String(parsed.id));
+        } catch (e) {}
+      }
+      url.searchParams.delete('iab');
+      url.searchParams.delete('sim_iab');
+      return url.toString();
+    } catch (e) {
+      return window.location.href;
+    }
+  };
+
+  if (inApp) {
+    return <OpenBrowserView />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-app-bg flex items-center justify-center text-muted-fg font-sans">
@@ -485,7 +575,7 @@ export function EventRegistration({ eventId }: EventRegistrationProps) {
         {registeredVisitorId && (
           <div className="bg-card-bg p-6 sm:p-8 rounded-2xl shadow-xl border border-app-border mb-6 flex flex-col items-center w-full max-w-md">
             
-            {/* QR Display Area (Canvas + Crisp Image for iOS Touch/Hold) */}
+            {/* QR Display Area (Canvas + Crisp Image for Touch/Hold & Click) */}
             <div className="bg-white p-4 rounded-2xl shadow-inner border border-slate-200 relative group">
               <QRCodeCanvas 
                 id="registration-qr"
@@ -527,7 +617,7 @@ export function EventRegistration({ eventId }: EventRegistrationProps) {
               <button 
                 type="button"
                 onClick={handleSaveOrShareQRCode}
-                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl transition-colors text-sm sm:text-base font-semibold shadow-md shadow-blue-500/20"
+                className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl transition-colors text-sm sm:text-base font-semibold shadow-md shadow-blue-500/20 cursor-pointer"
               >
                 <Share2 size={18} />
                 Save / Share QR Code

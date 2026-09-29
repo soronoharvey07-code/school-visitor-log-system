@@ -263,13 +263,7 @@ export function SettingsView({
           let mergedVisitors = response?.visitors;
 
           if (!Array.isArray(mergedVisitors) || mergedVisitors.length === 0) {
-            // Fallback: merge in client-side storage
-            const currentLogsStr = localStorage.getItem('school-visitor-log');
-            let currentLogs: any[] = [];
-            if (currentLogsStr) {
-              try { currentLogs = JSON.parse(currentLogsStr); } catch (e) {}
-            }
-            mergedVisitors = consolidateVisitors([...currentLogs, ...(payload.visitors || [])]);
+            mergedVisitors = consolidateVisitors(payload.visitors || []);
           }
 
           // Update localStorage caches with the full merged visitor list & photos

@@ -18,6 +18,8 @@ export interface Visitor {
   visitorType?: string; // Latest visitorType
   idType?: string;
   idNumber?: string;
+  visitorNumber?: string;
+  visitor_number?: string;
   contactNumber?: string;
   address?: string;
   notes?: string;

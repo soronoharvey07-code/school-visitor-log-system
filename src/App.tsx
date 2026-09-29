@@ -774,9 +774,14 @@ export default function App() {
             // If data was explicitly cleared, keep it cleared
             if (isDataClearedRef.current) return [];
 
-            // Merge local storage, current in-memory state, and incoming server data
-            const combined = [...localList, ...prev, ...mapped].filter(v => {
-              if (!v || !v.name) return false;
+            // Authoritative server data combined with local storage cache
+            const baseList = mapped.length > 0 ? mapped : (localList.length > 0 ? localList : prev);
+            const sourceList = mapped.length > 0 && localList.length > 0 ? [...localList, ...mapped] : baseList;
+
+            const filtered = sourceList.filter(v => {
+              if (!v) return false;
+              const vName = v.name || (v as any).full_name || '';
+              if (!vName.trim()) return false;
               const vId = String(v.id || '');
               const vNum = String(v.idNumber || v.visitor_number || '');
               if (vId && deletedSet.has(vId)) return false;
@@ -784,24 +789,12 @@ export default function App() {
               return true;
             });
 
-            const consolidated = consolidateVisitors(combined);
+            const consolidated = consolidateVisitors(filtered);
             syncIdSequence(consolidated);
 
-            // If local storage has visitors that the server is currently missing (e.g. Vercel serverless cold start),
-            // automatically sync them to the server so reports & server endpoints stay updated
-            if (mapped.length < consolidated.length && consolidated.length > 0) {
-              const token = sessionStorage.getItem('token') || localStorage.getItem('token');
-              if (token) {
-                fetch('/api/settings/restore-data', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                  },
-                  body: JSON.stringify({ visitors: consolidated })
-                }).catch(() => {});
-              }
-            }
+            try {
+              localStorage.setItem('school-visitor-log', JSON.stringify(consolidated));
+            } catch (e) {}
 
             return consolidated;
           });

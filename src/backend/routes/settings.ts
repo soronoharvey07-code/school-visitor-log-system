@@ -588,11 +588,23 @@ router.post('/restore-data', async (req, res) => {
         const timeIn = v.signInTime ? new Date(v.signInTime).toISOString() : (v.timeIn || v.time_in || new Date().toISOString());
         const timeOut = v.signOutTime ? new Date(v.signOutTime).toISOString() : (v.timeOut || v.time_out || null);
 
-        // Check if this person already exists in current DB by full name, contact number, or ID
-        let existing = await dbGet<any>(
-          `SELECT * FROM visitors WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?)) ORDER BY id ASC LIMIT 1`,
-          [fullName]
-        );
+        // Check if this person already exists in current DB by ID, visitor number, full name, contact, or ID credentials
+        let existing: any = null;
+
+        if (v.id) {
+          existing = await dbGet<any>('SELECT * FROM visitors WHERE id = ?', [v.id]);
+        }
+
+        if (!existing && visNum) {
+          existing = await dbGet<any>('SELECT * FROM visitors WHERE visitor_number = ?', [visNum]);
+        }
+
+        if (!existing && fullName) {
+          existing = await dbGet<any>(
+            `SELECT * FROM visitors WHERE LOWER(TRIM(full_name)) = LOWER(TRIM(?)) ORDER BY id ASC LIMIT 1`,
+            [fullName]
+          );
+        }
 
         if (!existing && contact && contact.trim()) {
           existing = await dbGet<any>(

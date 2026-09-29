@@ -13,26 +13,48 @@ export function consolidateVisitors(visitorsList: Visitor[]): Visitor[] {
   const sorted = [...visitorsList].sort((a, b) => (a.signInTime || 0) - (b.signInTime || 0));
 
   for (const item of sorted) {
-    if (!item || !item.name) continue;
-    const normName = item.name.trim().toLowerCase();
-    const cleanContact = item.contactNumber ? item.contactNumber.trim() : '';
-    const cleanIdType = item.idType ? item.idType.trim() : '';
-    const cleanIdNum = item.idNumber ? item.idNumber.trim() : '';
+    if (!item) continue;
+    const rawName = item.name || (item as any).full_name || '';
+    if (!rawName.trim()) continue;
+    const normName = rawName.trim().toLowerCase().replace(/\s+/g, ' ');
+    const cleanId = String(item.id || '').trim();
+    const cleanContact = item.contactNumber ? String(item.contactNumber).trim() : '';
+    const cleanIdType = item.idType ? String(item.idType).trim() : '';
+    const cleanIdNum = item.idNumber ? String(item.idNumber).trim() : '';
+    const rawVisNum = String(item.visitorNumber || item.idNumber || (item as any).visitor_number || '').trim();
+    const cleanVisNum = rawVisNum.replace(/^0+/, '');
     
-    // Find if there's already an entry in map (match by name, contact number, or ID type + ID number)
+    // Find if there's already an entry in map (match by name, id, visitor number, contact number, or ID type + ID number)
     let existingKey: string | null = null;
     if (map.has(normName)) {
       existingKey = normName;
-    } else if (cleanContact) {
+    } else {
       for (const [k, v] of map.entries()) {
-        if (v.contactNumber && v.contactNumber.trim() === cleanContact) {
+        const vRawName = v.name || (v as any).full_name || '';
+        const vNormName = vRawName.trim().toLowerCase().replace(/\s+/g, ' ');
+        if (vNormName === normName) {
           existingKey = k;
           break;
         }
-      }
-    } else if (cleanIdType && cleanIdNum) {
-      for (const [k, v] of map.entries()) {
-        if (v.idType === cleanIdType && v.idNumber && v.idNumber.trim() === cleanIdNum) {
+
+        const vId = String(v.id || '').trim();
+        if (cleanId && vId && cleanId === vId) {
+          existingKey = k;
+          break;
+        }
+
+        const vVisNum = String(v.visitorNumber || v.idNumber || (v as any).visitor_number || '').trim().replace(/^0+/, '');
+        if (cleanVisNum && vVisNum && cleanVisNum === vVisNum) {
+          existingKey = k;
+          break;
+        }
+
+        if (cleanContact && v.contactNumber && String(v.contactNumber).trim() === cleanContact) {
+          existingKey = k;
+          break;
+        }
+
+        if (cleanIdType && cleanIdNum && v.idType === cleanIdType && v.idNumber && String(v.idNumber).trim() === cleanIdNum) {
           existingKey = k;
           break;
         }
@@ -59,6 +81,7 @@ export function consolidateVisitors(visitorsList: Visitor[]): Visitor[] {
 
       map.set(normName, {
         ...item,
+        name: rawName.trim(),
         photo_url: photoVal,
         photoDataUrl: photoVal,
         photo: photoVal,
@@ -89,6 +112,7 @@ export function consolidateVisitors(visitorsList: Visitor[]): Visitor[] {
 
       map.set(existingKey, {
         ...primary, // Keep original ID, Visitor ID (#0001)
+        name: primary.name || rawName.trim(),
         purpose: item.purpose || primary.purpose,
         visiting: item.visiting || primary.visiting,
         visitorType: item.visitorType || primary.visitorType,
@@ -99,6 +123,7 @@ export function consolidateVisitors(visitorsList: Visitor[]): Visitor[] {
         address: item.address || primary.address,
         idType: item.idType || primary.idType,
         idNumber: primary.idNumber || item.idNumber,
+        visitorNumber: primary.visitorNumber || item.visitorNumber || primary.idNumber,
         status: item.status || primary.status,
         signInTime: item.signInTime || primary.signInTime,
         signOutTime: item.signOutTime !== undefined ? item.signOutTime : primary.signOutTime,
