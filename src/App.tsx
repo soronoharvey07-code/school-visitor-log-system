@@ -177,13 +177,21 @@ export default function App() {
       resetIdSequence();
     };
 
+    const handleUnauthorized = () => {
+      setCurrentUser(null);
+      setIsLoggingIn(false);
+      isLoggingInRef.current = false;
+    };
+
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('visitor-registered', updateFromStorage);
     window.addEventListener('data-cleared', handleDataCleared);
+    window.addEventListener('auth-unauthorized', handleUnauthorized);
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('visitor-registered', updateFromStorage);
       window.removeEventListener('data-cleared', handleDataCleared);
+      window.removeEventListener('auth-unauthorized', handleUnauthorized);
     };
   }, []);
 
@@ -807,7 +815,7 @@ export default function App() {
     fetchVisitors();
     const interval = setInterval(fetchVisitors, 4000);
     return () => clearInterval(interval);
-  }, [currentUser, isAdmin]);
+  }, [currentUser?.id, currentUser?.username, isAdmin]);
 
   // Protect the admin route
   useEffect(() => {

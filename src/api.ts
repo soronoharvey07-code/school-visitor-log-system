@@ -4,6 +4,8 @@ function getToken() {
   return sessionStorage.getItem('token') || localStorage.getItem('token');
 }
 
+let isRedirecting = false;
+
 async function fetchWithAuth(url: string, options: RequestInit = {}) {
   const token = getToken();
   const headers = {
@@ -16,18 +18,31 @@ async function fetchWithAuth(url: string, options: RequestInit = {}) {
   
   if (!res.ok) {
     if (res.status === 401 && url !== '/login') {
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('school-current-user');
-      sessionStorage.removeItem('auth_login_time');
-      localStorage.removeItem('token');
-      localStorage.removeItem('school-current-user');
-      localStorage.removeItem('auth_login_time');
-      window.location.href = '/';
+      if (!isRedirecting) {
+        isRedirecting = true;
+        sessionStorage.removeItem('token');
+        sessionStorage.removeItem('school-current-user');
+        sessionStorage.removeItem('auth_login_time');
+        localStorage.removeItem('token');
+        localStorage.removeItem('school-current-user');
+        localStorage.removeItem('auth_login_time');
+
+        window.dispatchEvent(new CustomEvent('auth-unauthorized'));
+
+        // Only redirect if not already on the login or root screen
+        if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/register')) {
+          window.location.href = '/';
+        } else {
+          setTimeout(() => { isRedirecting = false; }, 1000);
+        }
+      }
       return null;
     }
     throw new Error(data?.error || `API Error: ${res.status}`);
   }
   
+  // Successful authenticated call resets any transient redirect flag
+  isRedirecting = false;
   return data;
 }
 

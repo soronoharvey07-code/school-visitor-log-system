@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-export const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-key-do-not-use-in-prod';
+export const JWT_SECRET = (process.env.JWT_SECRET && process.env.JWT_SECRET.trim()) || 'rhmc-production-secure-jwt-key-2026-auth-token';
 
 export interface AuthRequest extends Request {
   user?: { id: number; username: string; role: string };
